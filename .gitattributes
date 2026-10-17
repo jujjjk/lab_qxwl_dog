@@ -1,0 +1,2 @@
+# Preserve shell scripts when cloning on Linux or Windows.
+*.sh text eol=lf

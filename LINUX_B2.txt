@@ -1,0 +1,167 @@
+B2 四足训练：Linux 使用说明
+整理日期：2026-10-17
+
+一、目录和固定版本
+
+lab_qxwl_dog/
+  IsaacLab/       NVIDIA 官方仿真、训练框架，v2.3.2
+  robot_lab/      社区机器人任务库，包含 B2 纯四足训练，v2.3.2
+  sources.json   两个仓库的来源、完整提交号和运行版本
+  LINUX_B2.txt    本说明
+
+两个项目的完整源码和模型直接收录在本仓库，版本对应正式标签 v2.3.2。
+上游提交号记录在 sources.json。普通克隆即可获取全部源码：
+
+git clone https://github.com/jujjjk/lab_qxwl_dog.git ~/lab_qxwl_dog
+cd ~/lab_qxwl_dog
+
+如果之前已经克隆本仓库，在仓库根目录更新 main：
+git pull --ff-only origin main
+
+也可以把 D:\gym\labdog 整个目录复制到 Linux，例如 ~/labdog。
+直接复制时请保留同级目录结构；如需 Git 信息，一并复制根目录隐藏的 .git 目录。
+此处不包含 Windows Python 环境，无需迁移旧 Isaac Gym 的 Python 环境。
+
+本次准备的运行组合：
+  Ubuntu 22.04 x86_64
+  Python 3.11
+  Isaac Sim 5.1.0
+  Isaac Lab v2.3.2
+  robot_lab v2.3.2
+  PyTorch 2.7.0 / torchvision 0.22.0 / CUDA 12.8 wheel
+  rsl-rl-lib 3.1.2
+
+按当前任务库的版本对应关系固定到这套组合；不要直接升级到其他大版本。
+具体提交号见 sources.json。Python 的全部间接依赖尚未生成完整锁定文件。
+
+二、在 Linux 准备环境
+
+以下命令在 Linux 终端逐步执行，假定仓库为 ~/lab_qxwl_dog，且已经安装 Conda。
+如果直接复制到了 ~/labdog，把首次进入目录的命令相应改为 cd ~/labdog。
+首次安装和首次运行需要联网下载依赖和部分 NVIDIA 公共资源。
+机器需要兼容 Isaac Sim 的 NVIDIA GPU 和驱动；先运行 nvidia-smi 检查。
+本版本 Isaac Lab 文档列出 32 GB 内存、16 GB 显存的基础配置，实际并行数量按机器调整。
+
+cd ~/lab_qxwl_dog
+export LABDOG_DIR="$PWD"
+nvidia-smi
+ldd --version
+
+sudo apt-get update
+sudo apt-get install -y cmake build-essential ffmpeg
+
+conda create -n labdog_b2 python=3.11 -y
+conda activate labdog_b2
+python -m pip install --upgrade pip
+
+# 安装 Linux 运行依赖；首次启动时按 NVIDIA 提示阅读并接受许可。
+python -m pip install "isaacsim[all,extscache]==5.1.0" --extra-index-url https://pypi.nvidia.com
+
+# 安装框架及 RSL-RL。上游脚本会配置本平台对应的 CUDA PyTorch。
+# 使用 bash 调用，避免从 Windows 复制后执行权限没有保留。
+cd "$LABDOG_DIR/IsaacLab"
+bash ./isaaclab.sh --install rsl_rl
+
+# 安装 B2 任务库；此操作也会安装上游 setup.py 中声明的其他 Python 依赖。
+cd "$LABDOG_DIR/robot_lab"
+python -m pip install -e source/robot_lab
+python -m pip check
+
+# 安装完成后记录实际环境，便于复现。
+python -m pip freeze > "$LABDOG_DIR/linux-installed-packages.txt"
+
+若以上安装失败，先处理报错，不要跳过依赖继续训练。
+Isaac Sim 是运行时软件包，这里无需额外克隆 Isaac Sim 源码。
+RSL-RL 通过 rsl-rl-lib 包安装，这里无需再克隆独立算法仓库。
+
+三、核对任务并做启动检查
+
+# 新开终端时先激活环境，并重新设置路径。
+conda activate labdog_b2
+cd ~/lab_qxwl_dog
+export LABDOG_DIR="$PWD"
+cd "$LABDOG_DIR/robot_lab"
+
+python -c "import torch; print('torch:', torch.__version__); print('CUDA:', torch.cuda.is_available())"
+python -c "from importlib.metadata import version; print('Isaac Sim:', version('isaacsim')); print('RSL-RL:', version('rsl-rl-lib'))"
+python scripts/tools/list_envs.py --keyword Unitree-B2-v0
+
+应能看到：
+  RobotLab-Isaac-Velocity-Flat-Unitree-B2-v0
+  RobotLab-Isaac-Velocity-Rough-Unitree-B2-v0
+
+# 只检查环境创建、采样和优化流程，10 轮不会得到可用的行走策略。
+python scripts/reinforcement_learning/rsl_rl/train.py \
+  --task RobotLab-Isaac-Velocity-Flat-Unitree-B2-v0 \
+  --headless --num_envs 64 --max_iterations 10 --run_name b2_smoke
+
+四、正式训练
+
+以下命令均在 labdog/robot_lab 下、激活 labdog_b2 环境后运行。
+先训练平地，再按需要运行复杂地形训练。
+
+# 平地：上游默认最大训练轮数为 5000。
+python scripts/reinforcement_learning/rsl_rl/train.py \
+  --task RobotLab-Isaac-Velocity-Flat-Unitree-B2-v0 \
+  --headless --num_envs 2048 --run_name b2_flat_baseline
+
+# 复杂地形：上游默认最大训练轮数为 20000。
+python scripts/reinforcement_learning/rsl_rl/train.py \
+  --task RobotLab-Isaac-Velocity-Rough-Unitree-B2-v0 \
+  --headless --num_envs 2048 --run_name b2_rough_baseline
+
+显存不足时，把 --num_envs 2048 减为 1024 或 512。
+训练轮数是迭代次数，不是秒数，不保证在特定时间内收敛。
+
+输出位置：
+  robot_lab/logs/rsl_rl/unitree_b2_flat/
+  robot_lab/logs/rsl_rl/unitree_b2_rough/
+每次运行在该目录下创建包含时间和 run_name 的子目录，模型通常为 model_*.pt。
+
+查看曲线：
+tensorboard --logdir logs/rsl_rl
+
+五、回放效果
+
+# 有桌面显示的 Linux：打开最新一次正式平地训练结果。
+python scripts/reinforcement_learning/rsl_rl/play.py \
+  --task RobotLab-Isaac-Velocity-Flat-Unitree-B2-v0 \
+  --num_envs 16 --load_run '.*_b2_flat_baseline'
+
+# 复杂地形训练结果。
+python scripts/reinforcement_learning/rsl_rl/play.py \
+  --task RobotLab-Isaac-Velocity-Rough-Unitree-B2-v0 \
+  --num_envs 16 --load_run '.*_b2_rough_baseline'
+
+# 无桌面服务器：回放并录制平地视频；渲染需要额外显存。
+python scripts/reinforcement_learning/rsl_rl/play.py \
+  --task RobotLab-Isaac-Velocity-Flat-Unitree-B2-v0 \
+  --headless --num_envs 1 --load_run '.*_b2_flat_baseline' \
+  --video --video_length 1000
+
+视频在对应训练运行目录的 videos/play/ 下。
+如需指定一次训练，使用 --load_run 实际运行目录名。
+如需指定模型，回放时使用 --checkpoint /完整路径/model_实际编号.pt；该选项优先于 --load_run。
+
+六、后续修改位置和验证范围
+
+B2 配置：
+  robot_lab/source/robot_lab/robot_lab/tasks/manager_based/locomotion/velocity/config/quadruped/unitree_b2/
+关节、电机仿真配置：
+  robot_lab/source/robot_lab/robot_lab/assets/unitree.py 中的 UNITREE_B2_CFG
+B2 URDF、网格：
+  robot_lab/source/robot_lab/data/Robots/unitree/b2_description/
+
+两个上游项目以固定版本的源码快照收录；修改前可在 lab_qxwl_dog 根目录创建实验分支：
+git switch -c codex/b2-experiments
+
+本次只在 Windows 完成源码、任务入口和 B2 本地模型资源的静态检查。
+尚未安装 Linux 仿真依赖、启动 Isaac Sim 或验证训练效果。
+该 B2 社区仿真模型仍需按真实机器校核质量、惯量和电机参数。
+
+参考：
+  https://github.com/isaac-sim/IsaacLab/tree/v2.3.2
+  https://github.com/fan-ziqi/robot_lab/tree/v2.3.2
+  IsaacLab/docs/source/setup/installation/pip_installation.rst
+  IsaacLab/docs/source/setup/installation/index.rst
+  https://docs.isaacsim.omniverse.nvidia.com/5.1.0/installation/requirements.html

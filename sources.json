@@ -1,0 +1,41 @@
+{
+  "prepared_on": "2026-10-17",
+  "target_platform": "linux-x86_64",
+  "publication": {
+    "repository": "https://github.com/jujjjk/lab_qxwl_dog.git",
+    "directory": ".",
+    "layout": "vendored-source"
+  },
+  "repositories": [
+    {
+      "directory": "IsaacLab",
+      "url": "https://github.com/isaac-sim/IsaacLab.git",
+      "ref": "v2.3.2",
+      "commit": "37ddf626871758333d6ed89cf64ad702aef127d0",
+      "integration": "vendored-source"
+    },
+    {
+      "directory": "robot_lab",
+      "url": "https://github.com/fan-ziqi/robot_lab.git",
+      "ref": "v2.3.2",
+      "commit": "09f6a9dfdf48f32f38bb851dfa3a7d44db32b270",
+      "integration": "vendored-source"
+    }
+  ],
+  "runtime_baseline": {
+    "os": "Ubuntu 22.04 x86_64",
+    "python": "3.11",
+    "isaacsim": "5.1.0",
+    "torch": "2.7.0",
+    "torchvision": "0.22.0",
+    "pytorch_cuda_wheel": "cu128",
+    "rsl-rl-lib": "3.1.2"
+  },
+  "tasks": {
+    "flat": "RobotLab-Isaac-Velocity-Flat-Unitree-B2-v0",
+    "rough": "RobotLab-Isaac-Velocity-Rough-Unitree-B2-v0"
+  },
+  "guide": "LINUX_B2.txt",
+  "validation_scope": "Source and local B2 assets checked on Windows; Linux installation, simulator launch and training are not yet verified.",
+  "all_transitive_dependencies_locked": false
+}

@@ -1,0 +1,17 @@
+# Local Python environments and caches
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# Local secrets and runtime output
+.env
+.env.local
+logs/
+outputs/
+wandb/
+.DS_Store
+Thumbs.db
